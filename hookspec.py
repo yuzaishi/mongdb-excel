@@ -34,66 +34,46 @@ class ExcelBasicPlugin:
 
     @impl
     def parser(self, path, config):
-        index_type, sheet, title = config.index, config.sheet, config.title
+        basename = os.path.basename(path).split('.')[0]
 
-        def _convert_to_csv(path, sheet, title):
-            wb = xlrd.open_workbook(path)
+        def _convert_to_csv(path, index_type, sheet, title_line):
+            out_path = replace_suffix(path, index_type, sheet + '.csv')
             try:
+                wb = xlrd.open_workbook(path)
                 sh = wb.sheet_by_name(sheet)
-                print(sh.row_values(title))
-                fileds = sh.row_values(title)
-                out_path = replace_suffix(path, index_type, 'csv')
-                with open(out_path, 'w', encoding='utf-8') as dest_csv:
-                    wr = csv.writer(dest_csv, quoting=csv.QUOTE_ALL)
-                    for row_num in range(title, sh.nrows):
+                print(sh.row_values(title_line))
+                fileds = sh.row_values(title_line)
+                with open(out_path, 'w', encoding='utf-8') as dest:
+                    wr = csv.writer(dest, quoting=csv.QUOTE_ALL)
+                    for row_num in range(title_line, sh.nrows):
                         wr.writerow(sh.row_values(row_num))
                 return out_path, fileds
             except xlrd.biffh.XLRDError:
                 print("No sheet {} in file {}".format(sheet, path))
+                return out_path, []
 
-        def _upload_csv(path, fileds, config):
+        def _upload_csv(path, fileds, sheet, config):
             import subprocess
-            basename = os.path.basename(path).split('.')[0]
             ipaddr = config.conf['DEFAULT']['mongo_ip_addr']
             port = config.conf['DEFAULT']['mongo_port']
             db = config.conf['DEFAULT']['data_set']
-            collection = basename + '_' + config.sheet
+            collection = basename + '_' + sheet
 
             # delete db before update new csv file
-            subprocess.run(["mongo",
-                            "--host",
-                            ipaddr,
-                            "--port",
-                            port,
-                            db,
-                            "--eval",
-                            "db.dropDatabase()"
-                            ])
+            if config.conf['DEFAULT']['is_dropdown'] == 'True':
+                proc = subprocess.run(["mongo", "--host",  ipaddr, "--port",  port, db, "--eval", "db.dropDatabase()"])
 
-            subprocess.run(["mongoimport",
-                            "--host",
-                            ipaddr,
-                            "--port",
-                            port,
-                            "--db",
-                            db,
-                            "--collection",
-                            collection,
-                            "--type",
-                            "csv",
-                            # "--mode",
-                            # "upsert",
-                            # "--upsertFields",
-                            # ','.join(fileds),
-                            "--headerline",
-                            "--file",
-                            path
-                            ])
-        try:
-            path, fields = _convert_to_csv(path, sheet, title)
-            _upload_csv(path, fields, config)
-        except TypeError:
-            pass
+            # if update insert mode used, fields value required
+            subprocess.run(["mongoimport", "--host", ipaddr, "--port",  port, "--db", db, "--collection", collection,
+                            "--type", "csv", "--headerline", "--file", path])
+
+        sheets = config.sheet or config.conf['SHEET'].get(basename).split(',')
+        title_line = config.conf['TITLE'].get(basename)
+        print(sheets)
+        print(title_line)
+        for sheet in sheets:
+            _path, fields = _convert_to_csv(path, config.index, sheet, int(title_line))
+            _upload_csv(_path, fields, sheet, config)
 
 
 class ExcelReadmePlugin:
@@ -118,64 +98,49 @@ class ExcelReadmePlugin:
 
     @impl
     def parser(self, path, config):
-        index_type, sheet, title = config.index, config.sheet, config.title
+        basename = os.path.basename(path).split('.')[0]
 
-        def _convert_to_csv(path, sheet, title):
-            wb = xlrd.open_workbook(path)
-            sh = wb.sheet_by_name(sheet)
-            print(sh.row_values(title))
-            fileds = sh.row_values(title)
-            out_path = replace_suffix(path, index_type, 'csv')
-            with open(out_path, 'w', encoding='utf-8') as dest_csv:
-                wr = csv.writer(dest_csv, quoting=csv.QUOTE_ALL)
-                for row_num in range(title, sh.nrows):
-                    wr.writerow(sh.row_values(row_num))
-            return out_path, fileds
+        def _convert_to_csv(path, index_type, sheet, title_line):
+            out_path = replace_suffix(path, index_type, sheet + '.csv')
+            try:
+                wb = xlrd.open_workbook(path)
+                sh = wb.sheet_by_name(sheet)
+                print(sh.row_values(title_line))
+                fileds = sh.row_values(title_line)
+                with open(out_path, 'w', encoding='utf-8') as dest:
+                    wr = csv.writer(dest, quoting=csv.QUOTE_ALL)
+                    for row_num in range(title_line, sh.nrows):
+                        wr.writerow(sh.row_values(row_num))
+                return out_path, fileds
+            except xlrd.biffh.XLRDError:
+                print("No sheet {} in file {}".format(sheet, path))
+                return out_path, []
 
-        def _upload_csv(path, fileds, config):
+        def _upload_csv(path, fileds, sheet, config):
             import subprocess
-            basename = os.path.basename(path).split('.')[0]
             ipaddr = config.conf['DEFAULT']['mongo_ip_addr']
             port = config.conf['DEFAULT']['mongo_port']
             db = config.conf['DEFAULT']['data_set']
-            collection = config.conf['MAPPER'].get(basename) or basename
+            collection = basename + '_' + sheet
 
             # delete db before update new csv file
-            subprocess.run(["mongo",
-                            "--host",
-                            ipaddr,
-                            "--port",
-                            port,
-                            db,
-                            "--eval",
-                            "db.dropDatabase()"
-                            ])
+            if config.conf['DEFAULT']['is_dropdown'] == 'True':
+                proc = subprocess.run(["mongo", "--host",  ipaddr, "--port",  port, db, "--eval", "db.dropDatabase()"])
 
-            subprocess.run(["mongoimport",
-                            "--host",
-                            ipaddr,
-                            "--port",
-                            port,
-                            "--db",
-                            db,
-                            "--collection",
-                            collection,
-                            "--type",
-                            "csv",
-                            # "--mode",
-                            # "upsert",
-                            # "--upsertFields",
-                            # ','.join(fileds),
-                            "--headerline",
-                            "--file",
-                            path
-                            ])
+            # if update insert mode used, fields value required
+            subprocess.run(["mongoimport", "--host", ipaddr, "--port",  port, "--db", db, "--collection", collection,
+                            "--type", "csv", "--headerline", "--file", path])
 
         for indexed_path in self.indexes:
             # to be doing
-            basename, full_path = indexed_path[1], indexed_path[8]
-            path, fields = _convert_to_csv(full_path, sheet, title)
-            _upload_csv(path, fields, config)
+            basename, fullpath = indexed_path[0], indexed_path[8]
+            sheets = config.sheet or config.conf['SHEET'].get(basename).split(',')
+            title_line = config.conf['TITLE'].get(basename)
+            print(sheets)
+            print(title_line)
+            for sheet in sheets:
+                _path, fields = _convert_to_csv(path, config.index, sheet, int(title_line))
+                _upload_csv(_path, fields, sheet, config)
 
 
 

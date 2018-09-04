@@ -34,12 +34,12 @@ def load_source(path):
 
 
 def import_to_db(path, hook, config):
-    ipaddr = args.conf['DEFAULT']['mongo_ip_addr']
-    port = args.conf['DEFAULT']['mongo_port']
     db = args.conf['DEFAULT']['data_set']
+    ip_addr = args.conf['DEFAULT']['mongo_ip_addr']
+    port = args.conf['DEFAULT']['mongo_port']
 
-    client = MongoClient(ipaddr, int(port))
     if path.endswith(config.filter):
+        client = MongoClient(ip_addr, int(port))
         mongo_db = client[db]
         mongo_collection = mongo_db[args.project]
         mongo_collection.insert_one({"filename": path})
@@ -66,15 +66,9 @@ if __name__ == '__main__':
                         help='test resource index file type, such as excel',
                         default=('xlsx', 'xls')
                         )
-    parser.add_argument('-t', '--title', nargs='?',
-                        type=int,
-                        help='test resource index file type, such as excel',
-                        default=0
-                        )
-    parser.add_argument('-s', '--sheet', nargs='?',
-                        type=str,
+    parser.add_argument('-s', '--sheet', nargs='+',
                         help='if index file is excel, specific sheet name',
-                        default='TestCase'
+                        default=[]
                         )
     parser.add_argument("--debug",
                         action="store_true",
