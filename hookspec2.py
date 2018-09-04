@@ -37,13 +37,12 @@ class ExcelBasicPlugin:
         basename = os.path.basename(path).split('.')[0]
 
         def _convert_to_csv(path, index_type, sheet, title_line):
-            wb = xlrd.open_workbook(path)
+            out_path = replace_suffix(path, index_type, sheet + '.csv')
             try:
+                wb = xlrd.open_workbook(path)
                 sh = wb.sheet_by_name(sheet)
                 print(sh.row_values(title_line))
                 fileds = sh.row_values(title_line)
-                out_path = replace_suffix(path, index_type, 'csv')
-
                 with open(out_path, 'w', encoding='utf-8') as dest:
                     wr = csv.writer(dest, quoting=csv.QUOTE_ALL)
                     for row_num in range(title_line, sh.nrows):
@@ -51,24 +50,25 @@ class ExcelBasicPlugin:
                 return out_path, fileds
             except xlrd.biffh.XLRDError:
                 print("No sheet {} in file {}".format(sheet, path))
+                return out_path, []
 
-        def _upload_csv(path, fileds, config):
+        def _upload_csv(path, fileds, sheet, config):
             import subprocess
             ipaddr = config.conf['DEFAULT']['mongo_ip_addr']
             port = config.conf['DEFAULT']['mongo_port']
             db = config.conf['DEFAULT']['data_set']
-            collection = basename + '_' + config.sheet
+            collection = basename + '_' + sheet
 
             # delete db before update new csv file
-            subprocess.run(["mongo",
-                            "--host",
-                            ipaddr,
-                            "--port",
-                            port,
-                            db,
-                            "--eval",
-                            "db.dropDatabase()"
-                            ])
+            # subprocess.run(["mongo",
+            #                 "--host",
+            #                 ipaddr,
+            #                 "--port",
+            #                 port,
+            #                 db,
+            #                 "--eval",
+            #                 "db.dropDatabase()"
+            #                 ])
 
             subprocess.run(["mongoimport",
                             "--host",
@@ -81,10 +81,6 @@ class ExcelBasicPlugin:
                             collection,
                             "--type",
                             "csv",
-                            # "--mode",
-                            # "upsert",
-                            # "--upsertFields",
-                            # ','.join(fileds),
                             "--headerline",
                             "--file",
                             path
@@ -92,12 +88,11 @@ class ExcelBasicPlugin:
 
         sheets = config.sheet or config.conf['SHEET'].get(basename).split(',')
         title_line = config.conf['TITLE'].get(basename)
+        print(sheets)
+        print(title_line)
         for sheet in sheets:
-            try:
-                path, fields = _convert_to_csv(path, config.index, sheet, int(title_line))
-                _upload_csv(path, fields, config)
-            except TypeError:
-                pass
+            _path, fields = _convert_to_csv(path, config.index, sheet, int(title_line))
+            _upload_csv(_path, fields, sheet, config)
 
 
 class ExcelReadmePlugin:

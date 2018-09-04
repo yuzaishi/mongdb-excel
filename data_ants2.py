@@ -7,7 +7,7 @@ import fnmatch
 import pluggy
 from pymongo import MongoClient
 import configparser
-from migration.hookspec import ParserSpec, ExcelBasicPlugin, ExcelReadmePlugin
+from migration.hookspec2 import ParserSpec, ExcelBasicPlugin, ExcelReadmePlugin
 
 config = configparser.ConfigParser()
 config.read('config.ini')
@@ -33,9 +33,13 @@ def load_source(path):
     yield _get_all_files(path)
 
 
-def import_to_db(path, hook, config, client):
+def import_to_db(path, hook, config):
     db = args.conf['DEFAULT']['data_set']
+    ip_addr = args.conf['DEFAULT']['mongo_ip_addr']
+    port = args.conf['DEFAULT']['mongo_port']
+
     if path.endswith(config.filter):
+        client = MongoClient(ip_addr, int(port))
         mongo_db = client[db]
         mongo_collection = mongo_db[args.project]
         mongo_collection.insert_one({"filename": path})
@@ -76,14 +80,10 @@ if __name__ == '__main__':
     pm.add_hookspecs(ParserSpec)
     pm.register(PLUGIN.get(args.conf['DEFAULT']['plugin_name'])())
 
-    ipaddr = args.conf['DEFAULT']['mongo_ip_addr']
-    port = args.conf['DEFAULT']['mongo_port']
-    client = MongoClient(ipaddr, int(port))
-
     for path in args.directory:
         items = load_source(path)
         for item in items:
             for value in item:
-                import_to_db(value, pm.hook, args, client)
+                import_to_db(value, pm.hook, args)
 
 
